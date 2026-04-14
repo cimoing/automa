@@ -4,6 +4,23 @@ import { executeWebhook } from '../utils/webhookUtil';
 import renderString from '../templating/renderString';
 
 const ALL_HTTP_RESPONSE_KEYWORD = '$response';
+const FALLBACK_ERRORS = ['Failed to fetch', 'user aborted'];
+
+function isJsonParseError(error) {
+  return error?.isJsonParseError || error?.message === 'invalid-body';
+}
+
+async function parseJsonResponse(response, ctxData = null) {
+  try {
+    return await response.json();
+  } catch (error) {
+    error.isJsonParseError = true;
+
+    if (ctxData) error.ctxData = ctxData;
+
+    throw error;
+  }
+}
 
 export async function webhook({ data, id }, { refData }) {
   const nextBlockId = this.getBlockConnections(id);
@@ -30,8 +47,13 @@ export async function webhook({ data, id }, { refData }) {
 
     if (!response.ok) {
       const { status, statusText } = response;
+      const baseCtxData = {
+        ctxData: {
+          request: { status, statusText },
+        },
+      };
       const responseData = await (data.responseType === 'json'
-        ? response.json()
+        ? parseJsonResponse(response, baseCtxData)
         : response.text());
       const ctxData = {
         ctxData: {
@@ -64,7 +86,7 @@ export async function webhook({ data, id }, { refData }) {
     let returnData = '';
 
     if (data.responseType === 'json') {
-      const jsonRes = await response.json();
+      const jsonRes = await parseJsonResponse(response);
 
       if (!includeResponse) {
         returnData = objectPath.get(jsonRes, data.dataPath);
@@ -116,13 +138,14 @@ export async function webhook({ data, id }, { refData }) {
       data: returnData,
     };
   } catch (error) {
-    const fallbackErrors = ['Failed to fetch', 'user aborted'];
     const executeFallback =
       fallbackOutput &&
-      fallbackErrors.some((message) => error.message.includes(message));
+      (FALLBACK_ERRORS.some((message) => error.message.includes(message)) ||
+        isJsonParseError(error));
     if (executeFallback) {
       return {
         data: '',
+        ctxData: error.ctxData,
         nextBlockId: fallbackOutput,
       };
     }

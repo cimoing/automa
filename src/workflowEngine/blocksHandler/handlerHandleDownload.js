@@ -184,6 +184,8 @@ async function handleDownload({ data, id: blockId }) {
               finalFilename = downloadResult.filename;
             }
 
+            finalFilename = finalFilename.replace(/\\/g, '/');
+
             if (processedData.saveData) {
               this.addDataToColumn(processedData.dataColumn, finalFilename);
             }
@@ -210,6 +212,7 @@ async function handleDownload({ data, id: blockId }) {
 
             let isResolved = false;
             let currentFilename = processedData.filename;
+            currentFilename = currentFilename.replace(/\\/g, '/');
 
             const timeout = setTimeout(() => {
               if (isResolved) return;
@@ -233,6 +236,8 @@ async function handleDownload({ data, id: blockId }) {
                     if (response.filename) {
                       currentFilename = response.filename;
                     }
+
+                    currentFilename = currentFilename.replace(/\\/g, '/');
 
                     if (processedData.saveData) {
                       this.addDataToColumn(
